@@ -129,6 +129,16 @@ gemini -s --approval-mode yolo -m gemini-2.5-pro -o text -p "Explain the code in
 
 Only use yolo when Gemini genuinely needs to navigate codebase autonomously (e.g., Exhausted Hypotheses where you don't know which files are relevant). In those cases, the git-stash wrapper is mandatory.
 
+## Session Management
+
+**Not yet supported.** Gemini's `-r <index>` may use positional indexes that shift across unrelated calls, making session resume unsafe. Session support is deferred until stable opaque session IDs are verified.
+
+If any session flag is passed (`--session`, `--new-session`, `--artifact`, `--reuse-session`, `list`, `delete`), hard-fail with:
+
+> "Gemini session resume is not yet supported — pending stable session ID verification. Remove session flags and run as one-shot."
+
+This error takes precedence over all other flag validation (including review-mode gating).
+
 ### Model Selection
 
 | Model | When |

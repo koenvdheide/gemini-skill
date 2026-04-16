@@ -11,6 +11,10 @@ Gives Claude Code a structured way to delegate analysis tasks to Gemini — brai
 - [Claude Code](https://claude.ai/code)
 - [Gemini CLI](https://github.com/google-gemini/gemini-cli) installed and on PATH
 
+## Optional: `reviewer` subagent
+
+The skill runs a mandatory QA pass using a `reviewer` subagent after summarizing high-stakes modes (`red-team`, `diff-review`, `exhausted-hypotheses`, `attack-surface`). It expects the subagent from [koenvdheide/claude-reviewer](https://github.com/koenvdheide/claude-reviewer). Without it, the skill falls back to self-review against the same fidelity rules — workflow still works, just less rigorous.
+
 ## Installation
 
 Copy or clone into your Claude Code skills directory:
@@ -23,7 +27,7 @@ git clone https://github.com/koenvdheide/gemini-skill.git ~/.claude/skills/gemin
 
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:
 
-```
+```text
 /gemini red-team my API design before I start implementing
 ```
 

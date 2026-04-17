@@ -166,7 +166,7 @@ Lightweight guidance for what to include per mode. Adapt to the situation — th
 
 **Brainstorm** — include constraints (dead-ends, existing hypotheses, "do not rediscover" lists) and the specific question. Ask for 3–5 alternatives with tradeoffs.
 
-**Red-team** — include the plan/approach being attacked and your constraints (framed as hard facts, not beliefs). Ask Gemini to find weaknesses under two explicit headings: Breakage (failure modes + wrong assumptions) and Simplifications (over-engineering + missed reductions). For each simplification: what to cut/merge/flatten, why safe, expected impact. Do not strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity. "Do not agree just to be agreeable."
+**Red-team** — include the plan/approach being attacked and your constraints (framed as hard facts, not beliefs). Ask Gemini to find weaknesses under two explicit headings: Breakage (failure modes, edge cases, wrong assumptions; attack assumptions and give the strongest counterargument) and Simplifications (over-engineering + missed reductions). For each simplification: what to cut/merge/flatten, why safe, expected impact. Do not strip defensive code at system boundaries, WHY comments, or anything whose removal sacrifices clarity for brevity. "Do not agree just to be agreeable."
 
 **Diff Review** — include the diff/report and any source files it references. Ask to verify each claim, flag assumptions stated as facts, check for stale line numbers.
 

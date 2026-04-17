@@ -20,7 +20,7 @@ description: >-
 
 ## When NOT to Use
 
-- Task is trivial or you have high confidence
+- Task is trivial
 - User needs quick response (takes 1–5 minutes)
 - Already used Gemini for same question this session
 - No concrete artifact or question yet

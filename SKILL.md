@@ -14,16 +14,31 @@ description: >-
 
 ## When to Use
 
-- Need a **different model family's perspective** on the same question
-- **Large context** analysis (Gemini 2.5 Pro has 1M token context)
-- Codex is **rate-limited** and you need a second opinion now
+- Have a Codex answer you want to cross-check, or need independent reasoning from a non-Anthropic / non-OpenAI model
+- Task needs Gemini's 1M-token context window (content is too large for Codex)
+- Codex is unavailable — rate-limited, auth broken, CLI failing, or service error
 
 ## When NOT to Use
 
-- Task is trivial
-- User needs quick response (takes 1–5 minutes)
-- Already used Gemini for same question this session
-- No concrete artifact or question yet
+- Single-file mechanical edit (typo, rename, one-import change) with no new concepts
+- Answer is already in context
+- Conversation is active back-and-forth, or user indicated urgency — 1–5 min wait would break the flow
+- Already used Gemini (or Codex) for this question this session, OR you're about to fire both on the same prompt — escalate to user
+- No specific artifact or concrete question — just a topic or area to "think about"
+- Prompt would contain secrets, credentials, or PII
+- Question is about Claude Code internals (hooks, skills, MCP, settings) — `/claude-code-docs` knows, external CLIs don't
+- Answer lives in library/tool docs — WebFetch, Context7, or `man` is cheaper
+- Missing local facts — reproduce the issue, inspect logs, run `rg`/`git`/`blame`, or ask user for clarification — before outsourcing reasoning
+- Decision depends on product priority, compliance, or release timing not in my context — ask the user (who owns this) first
+- Codex is available and the prompt fits comfortably — Gemini is fallback, not the default first reviewer
+
+## Precedence
+
+When multiple bullets match a single prompt:
+
+- **WNTU wins over WTU.** If any When NOT to Use bullet matches, don't fire — even if a When to Use bullet also matches. If unsure, ask the user ("I'd skip Gemini here because X; proceed anyway?") rather than firing.
+- **Among WTU, pick the most specific.** The more specific scenario carries more relevant context.
+- **Among WNTU, privacy beats cost.** Privacy/confidentiality skips are hard (never fire). Session/cost skips are soft (can escalate to user). If a prompt would contain secrets, that overrides every other consideration.
 
 ## Execution Reference
 

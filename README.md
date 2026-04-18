@@ -1,6 +1,6 @@
 # gemini-skill
 
-A [Claude Code](https://claude.ai/code) skill that invokes the local [Gemini CLI](https://github.com/google-gemini/gemini-cli) as an independent analysis partner from a different model family.
+A [Claude Code](https://claude.ai/code) plugin that invokes the local [Gemini CLI](https://github.com/google-gemini/gemini-cli) as an independent analysis partner from a different model family.
 
 ## What it does
 
@@ -17,10 +17,18 @@ The skill runs a mandatory QA pass using a `reviewer` subagent after summarizing
 
 ## Installation
 
-Copy or clone into your Claude Code skills directory:
+Via the `review-plugins` marketplace:
 
-```bash
-git clone https://github.com/koenvdheide/gemini-skill.git ~/.claude/skills/gemini
+```text
+/plugin marketplace add koenvdheide/review-plugins
+/plugin install gemini@review-plugins
+```
+
+Or add this repo directly as a single-plugin marketplace:
+
+```text
+/plugin marketplace add koenvdheide/gemini-skill
+/plugin install gemini@gemini-skill
 ```
 
 ## Usage
@@ -28,7 +36,7 @@ git clone https://github.com/koenvdheide/gemini-skill.git ~/.claude/skills/gemin
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:
 
 ```text
-/gemini red-team my API design before I start implementing
+/gemini:gemini red-team my API design before I start implementing
 ```
 
 ## License

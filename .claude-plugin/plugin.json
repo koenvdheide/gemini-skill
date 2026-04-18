@@ -9,6 +9,5 @@
   "homepage": "https://github.com/koenvdheide/gemini-skill",
   "repository": "https://github.com/koenvdheide/gemini-skill",
   "license": "MIT",
-  "keywords": ["gemini", "review", "llm", "cli", "red-team"],
-  "skills": ["./"]
+  "keywords": ["gemini", "review", "llm", "cli", "red-team"]
 }

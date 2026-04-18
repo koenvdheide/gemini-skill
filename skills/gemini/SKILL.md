@@ -12,7 +12,7 @@ description: >-
 
 `gemini -p` provides independent perspective from Google's Gemini model family. Runs locally via Gemini CLI, can optionally read codebase, returns analysis to stdout.
 
-> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `export`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Gemini commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
+> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `export`, `cygpath`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Gemini commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
 
 ## When to Use
 

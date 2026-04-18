@@ -91,7 +91,9 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 **Key change from earlier version:** Explain mode no longer uses `yolo`. Pipe relevant files via stdin with `plan` mode. Only Attack Surface and Exhausted Hypotheses genuinely need autonomous file navigation — those MUST use the git-stash wrapper.
 
-**Always use `--sandbox`** on every invocation. The `--approval-mode plan` flag claims to be "read-only" but does NOT reliably prevent file writes — Gemini has been observed writing files, creating directories, modifying `pytest.ini`, and even executing entire implementation plans despite `plan` mode. The `--sandbox` flag provides additional isolation but is ALSO unreliable on Windows (Docker must be running; without it, writes escape to the host filesystem silently).
+**Always use `--sandbox`** on every invocation. The `--approval-mode plan` flag claims to be "read-only" but does NOT reliably prevent file writes — Gemini has been observed writing files, creating directories, modifying `pytest.ini`, and even executing entire implementation plans despite `plan` mode. The `--sandbox` flag provides additional isolation.
+
+**Windows caveat:** on Windows the `--sandbox` flag requires Docker to be running; without it, writes escape to the host filesystem silently. On Linux/macOS the sandbox works without extra setup.
 
 **CRITICAL: Gemini WILL write to your working directory.** Treat every Gemini invocation as potentially destructive. Mitigations below are mandatory, not optional.
 
@@ -109,7 +111,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 ### Mandatory Write Protection (prevents sandbox escapes)
 
-Gemini's sandbox is unreliable on Windows. These steps are MANDATORY for every invocation:
+These steps are MANDATORY for every invocation, regardless of platform, because `--approval-mode plan` is unreliable (see above). On Windows the sandbox itself is also unreliable without Docker, making the snapshot/restore wrapper even more important.
 
 **Before launching Gemini:**
 ```bash
@@ -267,7 +269,7 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 ### Recommended: API Key with Billing
 
 ```
-GEMINI_API_KEY=<your-key>  # Set as Windows environment variable
+GEMINI_API_KEY=<your-key>  # Set as environment variable (export on Linux/macOS, setx or system env on Windows)
 ```
 
 Get a key at https://aistudio.google.com/apikey. Link to a billing account for Tier 1 limits (300 RPM, 1000 RPD).

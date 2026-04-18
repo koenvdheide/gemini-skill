@@ -105,6 +105,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 - **Wait for completion:** NEVER read or delete the output file (the `> /tmp/gemini-slug.txt` redirection target) until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Gemini finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
 - **Re-launch safety:** if re-launching a Gemini invocation, use a DIFFERENT output file path (e.g., `/tmp/gemini-redteam-auth-v2.txt`). Never reuse the same output path as a still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if output file is empty but task completed successfully, Gemini may have written to an internal location (e.g., `.gemini/tmp/`). Check background task log for file paths and read them. Never skip or dismiss review output because it ended up somewhere unexpected.
+- **Passing output paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`). The subagent's Read tool will fail to find `/tmp/gemini-<slug>.txt`. Two safe patterns: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/gemini-<slug>.txt)` (yields `C:\Users\...\Temp\gemini-<slug>.txt` which the subagent's Read tool resolves natively). On Linux/macOS, the literal `/tmp/` path works as-is. Inline content is the default; convert-path is the fallback when output is too large to embed in the prompt.
 
 ### Mandatory Write Protection (prevents sandbox escapes)
 
@@ -259,6 +260,7 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 | Empty output | Check stderr (remove `2>/dev/null` temporarily). May be auth or model issue. |
 | Hangs indefinitely | Ensure `--approval-mode` is set (prevents interactive approval prompts) |
 | Wrong/irrelevant analysis | Check that your prompt actually reached Gemini — verify the heredoc closed properly |
+| Subagent reports output file not found | Subagent's isolated tool environment doesn't resolve Git Bash `/tmp/` paths. Inline file content into subagent prompt, or pass `$(cygpath -w /tmp/gemini-<slug>.txt)` on Windows. See Execution Rules → "Passing output paths to subagents". |
 
 ## Authentication
 

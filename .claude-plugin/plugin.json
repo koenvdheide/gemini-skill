@@ -1,6 +1,6 @@
 {
   "name": "gemini",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Wraps the Gemini CLI as an independent analysis partner — /gemini:gemini skill supports brainstorm, red-team, diff-review, exhausted-hypotheses, attack-surface and other modes from a non-Claude model family",
   "author": {
     "name": "Koen van der Heide",

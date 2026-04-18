@@ -12,6 +12,8 @@ description: >-
 
 `gemini -p` provides independent perspective from Google's Gemini model family. Runs locally via Gemini CLI, can optionally read codebase, returns analysis to stdout.
 
+> **Shell prerequisite:** the recipes below use bash features (`/tmp/` paths, heredocs, `export`). Claude Code ships with bash on every platform (native on Linux/macOS, Git Bash on Windows) so this is usually a non-issue — but if you're running Gemini commands from native Windows `cmd` or PowerShell outside Claude Code, adapt the syntax.
+
 ## When to Use
 
 - Have a Codex answer you want to cross-check, or need independent reasoning from a non-Anthropic / non-OpenAI model
@@ -93,7 +95,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 **Always use `--sandbox`** on every invocation. The `--approval-mode plan` flag claims to be "read-only" but does NOT reliably prevent file writes — Gemini has been observed writing files, creating directories, modifying `pytest.ini`, and even executing entire implementation plans despite `plan` mode. The `--sandbox` flag provides additional isolation.
 
-**Windows caveat:** on Windows the `--sandbox` flag requires Docker to be running; without it, writes escape to the host filesystem silently. On Linux/macOS the sandbox works without extra setup.
+**Windows caveat:** on Windows the `--sandbox` flag requires Docker to be running; without it, writes escape to the host filesystem silently. On Linux/macOS this Docker prerequisite does not apply.
 
 **CRITICAL: Gemini WILL write to your working directory.** Treat every Gemini invocation as potentially destructive. Mitigations below are mandatory, not optional.
 
@@ -111,7 +113,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 ### Mandatory Write Protection (prevents sandbox escapes)
 
-These steps are MANDATORY for every invocation, regardless of platform, because `--approval-mode plan` is unreliable (see above). On Windows the sandbox itself is also unreliable without Docker, making the snapshot/restore wrapper even more important.
+These steps are MANDATORY for every invocation, regardless of platform, because `--approval-mode plan` is unreliable (see above).
 
 **Before launching Gemini:**
 ```bash
@@ -269,7 +271,7 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 ### Recommended: API Key with Billing
 
 ```
-GEMINI_API_KEY=<your-key>  # Set as environment variable (export on Linux/macOS, setx or system env on Windows)
+export GEMINI_API_KEY=<your-key>
 ```
 
 Get a key at https://aistudio.google.com/apikey. Link to a billing account for Tier 1 limits (300 RPM, 1000 RPD).

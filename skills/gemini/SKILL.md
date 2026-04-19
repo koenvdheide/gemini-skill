@@ -196,6 +196,47 @@ Lightweight guidance for what to include per mode. Adapt to the situation — th
 
 **Exhausted Hypotheses** — use `yolo` mode. Include full pipeline state (scope, dead-ends, coverage, existing hypotheses) as constraints. Ask for 5–10 novel hypotheses NOT in the dead-ends, with exact file:line references and attack scenarios.
 
+## Convergence Mode (iterative review)
+
+Some review tasks converge rather than conclude. When reviewing an evolving artifact — a spec, plan, or design that will go through multiple revisions — prefer running Gemini in a **convergence loop**: repeat review → fix → re-review until the reviewer gives an affirmative verdict, the user stops, or scope drift is detected.
+
+### When to use
+
+- Reviewing an iterating artifact (spec, plan, design) that likely needs several revisions.
+- User has signaled iterative review; one-shot is insufficient.
+- There is time for multiple rounds (2-5 min per round typical; larger artifacts or deep analysis can run longer).
+
+### Loop shape
+
+1. Invoke Gemini with the full artifact and a clear question.
+2. Parse findings; summarize to the user; propose fixes.
+3. **Gate 1 — apply fixes.** Ask `yes-all / per-finding / skip`. Apply as selected.
+4. **Gate 2 — continue or stop.** Re-state the original one-sentence brief in your prompt. Ask `continue / stop / switch-mode`. If continue, loop to (1).
+5. Terminate when Gemini's verdict is clearly affirmative for the mode (`"approve"` / `"no regressions"` / `"no blockers"` for red-team/diff-review; `"Yes"` / `"executable as-is"` for evaluate-style prompts) AND no findings remain open; OR user stops; OR scope drift detected.
+
+### Across-round prompt construction
+
+- Round 1: full artifact + question.
+- Round N > 1: also include a `Previously identified findings:` block listing prior findings (title, severity, status: addressed / skipped). This gives the reviewer drift-detection context and prevents re-finding the same issues by luck.
+- After context compaction: if the user resumes a cycle that lost context, they paste the current findings list back into the conversation. No persistent on-disk state is required; findings fit in the conversation.
+
+### Anti-pattern: the scope-drift spiral
+
+**The convergence loop is excellent at deepening a design and terrible at questioning its direction.** Each round's findings are individually valid, but the cumulative effect can pull the artifact into a regime the user never asked for. Signs of drift:
+
+- The artifact has grown by hundreds of lines per round.
+- New rounds are finding issues in *fixes you added in prior rounds* rather than in the original artifact.
+- Routine "yes-all" user responses with no pushback — either the user trusts the process (fine) or you're not surfacing options honestly (not fine).
+- Gemini Simplifications findings get absorbed as refactors ("merge X and Y") rather than used as stop signals ("did we need X or Y in the first place?").
+- Per-finding drift detection (exact-title / evidence-overlap) shows zero drift — because *brief-level* drift does not show up as finding recurrence.
+
+**What to do:**
+
+1. **At every Gate 2, re-state the original one-sentence brief in your presentation.** Don't just ask "continue?" — ask "given the original goal, does this next round of fixes make sense?"
+2. **Weight Simplifications at least as heavily as Breakage.** The default bias is toward addition; correct for it by actively looking for "remove this" opportunities.
+3. **Monitor artifact size growth.** If a round grows the artifact by >50%, that is a signal to stop and re-confirm scope before continuing.
+4. **Treat routine user "yes-all" as a warning, not a go-ahead.** Add friction on purpose. Present simplify-first and remove-this options alongside add-machinery options.
+
 ## Handling Output
 
 - **Never relay raw Gemini output.** Extract key findings, disagreements, next steps.

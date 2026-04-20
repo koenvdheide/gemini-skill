@@ -37,6 +37,8 @@ Or add this repo directly as a single-plugin marketplace:
 /plugin install gemini@gemini-skill
 ```
 
+Refresh later with `/plugin marketplace update review-plugins` (or `gemini-skill` if installed directly).
+
 ## Usage
 
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:

@@ -44,7 +44,7 @@ Refresh later with `/plugin marketplace update review-plugins` (or `gemini-skill
 Claude invokes the skill automatically when a task matches, or you can invoke it directly:
 
 ```text
-/gemini:gemini red-team my API design before I start implementing
+/gemini red-team my API design before I start implementing
 ```
 
 ## License

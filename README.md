@@ -28,9 +28,10 @@ Via the `agent-tools` marketplace:
 ```text
 /plugin marketplace add koenvdheide/agent-tools
 /plugin install gemini@agent-tools
+/reload-plugins
 ```
 
-Refresh later with `/plugin marketplace update agent-tools`.
+Refresh later with `/plugin marketplace update agent-tools`, then `/reload-plugins`.
 
 ## Usage
 

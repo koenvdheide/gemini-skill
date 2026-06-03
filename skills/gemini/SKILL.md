@@ -178,7 +178,7 @@ Append this clause to every outgoing Gemini prompt, regardless of mode:
 
 > Response style: compress prose. Drop fillers, hedges, connectives unless load-bearing. Prefer short active sentences. Keep verbatim: code blocks, diffs, file:line citations, log entries, numbers, names, paths, quoted context, and tables (headers, cells, and structure). Never compress code. If compression would obscure a finding, write normal prose.
 
-Unlike the Codex skill — where this clause lives inside a unified Base Prompt Template and propagates automatically — the Gemini skill has no such template, so the clause must be appended manually on every invocation. TODO: consider adding a Base Prompt Template to this skill so the clause propagates automatically.
+Unlike the Codex skill — where this clause lives inside a unified Base Prompt Template and propagates automatically — the Gemini skill has no such template, so the clause must be appended manually on every invocation.
 
 ## Modes
 

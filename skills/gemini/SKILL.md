@@ -76,7 +76,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 | Flag | Purpose |
 |------|---------|
-| `-s` / `--sandbox` | Run in sandbox isolation. **Mandatory on every invocation** — prevents file writes from escaping to the working directory. |
+| `-s` / `--sandbox` | Run in sandbox isolation. **Use on every invocation.** Isolates writes to paths *outside* the project; the project cwd is bind-mounted, so cwd writes still reach the host — use the Cwd Write Protection wrapper for those. |
 | `-p "prompt"` | Provide the prompt. Triggers non-interactive mode. Stdin content is prepended to this. |
 | `-m model` | Model selection (default: `gemini-2.5-pro`) |
 | `--approval-mode plan` | Read-only — blocks tool use. Use for pure reasoning on provided input. |
@@ -96,11 +96,11 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 **Key change from earlier version:** Explain mode no longer uses `yolo`. Pipe relevant files via stdin with `plan` mode. Only Attack Surface and Exhausted Hypotheses genuinely need autonomous file navigation — those MUST use the git-stash wrapper.
 
-**Always use `--sandbox`** on every invocation. The `--approval-mode plan` flag claims to be "read-only" but does NOT reliably prevent file writes — Gemini has been observed writing files, creating directories, modifying `pytest.ini`, and even executing entire implementation plans despite `plan` mode. The `--sandbox` flag provides additional isolation.
+**Use `--sandbox` on every invocation as defense-in-depth.** In tested gemini 0.36.0 on Win11, `--approval-mode plan` refused both a direct cwd write and an `echo > file` shell command (it would only write under a `plans/` directory); arbitrary cwd writes were not reproduced. This was not validated across versions, models, configs, or MCP/tool startup paths, so treat plan mode as low-risk-but-not-proven rather than a hard guarantee. The clear write risk is **yolo mode**, which writes freely — verified: `echo > file` landed on the host working directory. `--sandbox` adds isolation by running Gemini in a container, which blocks writes *outside* the project (the project cwd is bind-mounted, so cwd writes still reach the host). Older gemini versions were observed writing despite `plan` mode, so the wrapper below stays as cheap insurance.
 
-**Windows caveat:** on Windows the `--sandbox` flag requires Docker to be running; without it, writes escape to the host filesystem silently. On Linux/macOS this Docker prerequisite does not apply.
+**Windows caveat:** on Windows `--sandbox` runs Gemini in a WSL2-backed Docker container (verified: `uname` inside the run reports `Linux ... WSL2`, and a `gemini-cli/sandbox` container goes live), so Docker must be running. If the sandbox cannot start, do not run unsandboxed — host execution writes straight to the host. On Linux/macOS this Docker prerequisite does not apply. **Either way the project working directory is bind-mounted into the sandbox** — writes *inside* cwd reach the host even when sandboxed (only out-of-project writes are isolated). So `--sandbox` is not the guard for cwd; the Cwd Write Protection wrapper below is.
 
-**CRITICAL: Gemini WILL write to your working directory.** Treat every Gemini invocation as potentially destructive. Mitigations below are mandatory, not optional.
+**Gemini in yolo mode WILL write to your working directory**, and even sandboxed the cwd is bind-mounted. Treat yolo invocations as potentially destructive and apply the wrapper below.
 
 ### Execution Rules
 
@@ -115,9 +115,11 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 - **Chase down all output:** if output file is empty but task completed successfully, Gemini may have written to an internal location (e.g., `.gemini/tmp/`). Check background task log for file paths and read them. Never skip or dismiss review output because it ended up somewhere unexpected.
 - **Passing output paths to subagents:** if you followed the Output-path rule and wrote to `c:/tmp/gemini-<slug>.txt` on Windows, subagents resolve it natively with no conversion needed (preferred). On Linux/macOS, a `/tmp/gemini-<slug>.txt` path works as-is. The problem case is a Windows `/tmp/...` output: subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`), so the subagent's Read tool fails to find `/tmp/gemini-<slug>.txt`. Two fallbacks: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output into the subagent prompt (works everywhere; preferred for outputs ≤ ~50KB). (2) **convert path** — run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path to the subagent.
 
-### Mandatory Write Protection (prevents sandbox escapes)
+### Cwd Write Protection
 
-These steps are MANDATORY for every invocation, regardless of platform, because `--approval-mode plan` is unreliable (see above).
+Scope: this wrapper snapshots and reverts **git-visible changes in the project cwd** after a run. It does not prevent sandbox escapes, does not catch writes outside the project, and may miss `.gitignore`d files — it is a cwd-cleanup net, not a security boundary.
+
+It is **mandatory for yolo-mode invocations** (Attack Surface, Exhausted Hypotheses), which write freely to cwd, and on Windows where `--sandbox` bind-mounts cwd. For plan-mode modes it is **recommended defense-in-depth** rather than strictly required, since tested gemini confined plan-mode writes (see above) — but it is cheap, so default to running it unless you have a reason not to.
 
 **Before launching Gemini:**
 ```bash
@@ -140,11 +142,11 @@ fi
 if [ "$GEMINI_STASHED" -eq 0 ]; then git stash pop 2>/dev/null; fi
 ```
 
-**Simplified rule:** if you don't want to stash/unstash, at minimum run `git status --short` after every Gemini completion and `git checkout -- .` if anything changed. Bare minimum.
+**Simplified rule (plan-mode only — never a substitute for yolo):** for plan-mode runs, if you don't want to stash/unstash, at minimum run `git status --short` after completion and `git checkout -- .` if anything changed. For yolo runs, use the full stash wrapper above, not this shortcut.
 
 **For yolo mode specifically:** when Gemini needs to read files (Explain, Attack Surface, Exhausted Hypotheses), prefer piping file content via stdin over yolo mode:
 ```bash
-# PREFERRED: pipe content, use plan mode (no file writes possible)
+# PREFERRED: pipe content, use plan mode (tested gemini refused cwd/shell writes; lowest risk)
 cat file1.py file2.py | gemini -s --approval-mode plan -m gemini-2.5-pro -o text -p "Explain this code"
 
 # AVOID: yolo mode (Gemini can and will write files)
@@ -196,9 +198,9 @@ Lightweight guidance for what to include per mode. Adapt to the situation — th
 
 **Explain** — pipe file content via stdin with `plan` mode (preferred), or use `yolo` with git-stash wrapper (only if you don't know which files to pipe). Ask what the code does, why it's structured that way, what's non-obvious.
 
-**Attack Surface** — use `yolo` mode. Include dead-end list and known patterns as constraints. Ask for overlooked vectors, underexplored entry points, non-obvious vulnerability classes.
+**Attack Surface** — use `yolo` mode **with the Cwd Write Protection wrapper** (yolo writes freely). Include dead-end list and known patterns as constraints. Ask for overlooked vectors, underexplored entry points, non-obvious vulnerability classes.
 
-**Exhausted Hypotheses** — use `yolo` mode. Include full pipeline state (scope, dead-ends, coverage, existing hypotheses) as constraints. Ask for 5–10 novel hypotheses NOT in the dead-ends, with exact file:line references and attack scenarios.
+**Exhausted Hypotheses** — use `yolo` mode **with the Cwd Write Protection wrapper** (yolo writes freely). Include full pipeline state (scope, dead-ends, coverage, existing hypotheses) as constraints. Ask for 5–10 novel hypotheses NOT in the dead-ends, with exact file:line references and attack scenarios.
 
 ## Convergence Mode (iterative review)
 

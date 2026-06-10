@@ -47,12 +47,15 @@ When multiple bullets match a single prompt:
 ### Basic Invocation
 
 ```bash
+# Output paths below use /tmp (Linux/macOS); on Windows use c:/tmp instead
+# (Claude's Read tool can't resolve a literal /tmp path on Windows — see Execution Rules).
+
 # Short prompt — pure reasoning, no file access
-gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
+gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text \
   -p "Your prompt here" > /tmp/gemini-slug.txt 2>/dev/null
 
 # Long prompt via heredoc
-gemini -s --approval-mode plan -m gemini-2.5-pro -o text -p "$(cat <<'PROMPT'
+gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "$(cat <<'PROMPT'
 Mode: red-team
 Question: Find failure modes in this approach.
 Context:
@@ -62,7 +65,7 @@ PROMPT
 )" > /tmp/gemini-slug.txt 2>/dev/null
 
 # Source code via pipe (safe for backticks, $, etc.)
-cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
+cat file.rs | gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text \
   -p "Explain this code. Flag anything that looks like a bug." \
   > /tmp/gemini-slug.txt 2>/dev/null
 ```
@@ -73,7 +76,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 | Flag | Purpose |
 |------|---------|
-| `-s` / `--sandbox` | Run in sandbox isolation. **Mandatory on every invocation** — prevents file writes from escaping to the working directory. |
+| `-s` / `--sandbox` | Run in sandbox isolation. **Use on every invocation.** Isolates writes to paths *outside* the project; the project cwd is bind-mounted, so cwd writes still reach the host — use the Cwd Write Protection wrapper for those. |
 | `-p "prompt"` | Provide the prompt. Triggers non-interactive mode. Stdin content is prepended to this. |
 | `-m model` | Model selection (default: `gemini-2.5-pro`) |
 | `--approval-mode plan` | Read-only — blocks tool use. Use for pure reasoning on provided input. |
@@ -93,27 +96,31 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 
 **Key change from earlier version:** Explain mode no longer uses `yolo`. Pipe relevant files via stdin with `plan` mode. Only Attack Surface and Exhausted Hypotheses genuinely need autonomous file navigation — those MUST use the git-stash wrapper.
 
-**Always use `--sandbox`** on every invocation. The `--approval-mode plan` flag claims to be "read-only" but does NOT reliably prevent file writes — Gemini has been observed writing files, creating directories, modifying `pytest.ini`, and even executing entire implementation plans despite `plan` mode. The `--sandbox` flag provides additional isolation.
+**Use `--sandbox` on every invocation as defense-in-depth.** In tested gemini 0.36.0 on Win11, `--approval-mode plan` refused both a direct cwd write and an `echo > file` shell command (it would only write under a `plans/` directory); arbitrary cwd writes were not reproduced. This was not validated across versions, models, configs, or MCP/tool startup paths, so treat plan mode as low-risk-but-not-proven rather than a hard guarantee. The clear write risk is **yolo mode**, which writes freely — verified: `echo > file` landed on the host working directory. `--sandbox` adds isolation by running Gemini in a container, which blocks writes *outside* the project (the project cwd is bind-mounted, so cwd writes still reach the host). Older gemini versions were observed writing despite `plan` mode, so the wrapper below stays as cheap insurance.
 
-**Windows caveat:** on Windows the `--sandbox` flag requires Docker to be running; without it, writes escape to the host filesystem silently. On Linux/macOS this Docker prerequisite does not apply.
+**Windows caveat:** on Windows `--sandbox` runs Gemini in a WSL2-backed Docker container (verified: `uname` inside the run reports `Linux ... WSL2`, and a `gemini-cli/sandbox` container goes live), so Docker must be running. If the sandbox cannot start, do not run unsandboxed — host execution writes straight to the host. On Linux/macOS this Docker prerequisite does not apply. **Either way the project working directory is bind-mounted into the sandbox** — writes *inside* cwd reach the host even when sandboxed (only out-of-project writes are isolated). So `--sandbox` is not the guard for cwd; the Cwd Write Protection wrapper below is.
 
-**CRITICAL: Gemini WILL write to your working directory.** Treat every Gemini invocation as potentially destructive. Mitigations below are mandatory, not optional.
+**Gemini in yolo mode WILL write to your working directory**, and even sandboxed the cwd is bind-mounted. Treat yolo invocations as potentially destructive and apply the wrapper below.
 
 ### Execution Rules
 
 - **Always add `-s` (or `--sandbox`)** to every gemini invocation — no exceptions
+- **Disable MCP servers with `--allowed-mcp-server-names __none__`** (a sentinel: any name that matches no configured server, so zero MCP servers load — not a documented empty-list idiom, but verified to work on 0.36.0; pick a value unlikely to ever match a real server). The skill's analysis recipes don't depend on user MCP servers, and a failing server makes Gemini prepend `MCP issues detected. Run /mcp list for status.` to **stdout**, contaminating the captured output Claude parses. Verified: the banner disappears with the flag.
 - Use `run_in_background: true` so user is not blocked
 - Always redirect stderr: `2>/dev/null` (suppresses YOLO mode spam and libuv warnings)
-- **Cleanup:** after reading output file, delete it (`rm -f /tmp/gemini-slug.txt`)
-- Use descriptive slugs: `/tmp/gemini-redteam-auth.txt`, not `/tmp/gemini-output.txt`
-- **Wait for completion:** NEVER read or delete the output file (the `> /tmp/gemini-slug.txt` redirection target) until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Gemini finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
-- **Re-launch safety:** if re-launching a Gemini invocation, use a DIFFERENT output file path (e.g., `/tmp/gemini-redteam-auth-v2.txt`). Never reuse the same output path as a still-running or recently-launched invocation — two processes will collide on output file.
+- **Output path — `<temp>` convention:** write the redirect target to `<temp>/gemini-<slug>.txt`, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` on Windows — Bash in Git Bash resolves it to `%TEMP%` and the write succeeds, but Claude's Read tool resolves the literal `/tmp/...` path and fails with `File does not exist` when you read the output back. `c:/tmp/...` makes both the shell write and Claude's Read land on the same Windows-native location. The `/tmp/` paths in the code examples are the Linux/macOS form — substitute `c:/tmp/` on Windows.
+- **Cleanup:** after reading output file, delete it (`rm -f <temp>/gemini-<slug>.txt`)
+- Use descriptive slugs: `<temp>/gemini-redteam-auth.txt`, not `<temp>/gemini-output.txt`
+- **Wait for completion:** NEVER read or delete the output file (the `> <temp>/gemini-<slug>.txt` redirection target) until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Gemini finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
+- **Re-launch safety:** if re-launching a Gemini invocation, use a DIFFERENT output file path (e.g., `<temp>/gemini-redteam-auth-v2.txt`). Never reuse the same output path as a still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if output file is empty but task completed successfully, Gemini may have written to an internal location (e.g., `.gemini/tmp/`). Check background task log for file paths and read them. Never skip or dismiss review output because it ended up somewhere unexpected.
-- **Passing output paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`). The subagent's Read tool will fail to find `/tmp/gemini-<slug>.txt`. Two safe patterns: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/gemini-<slug>.txt)` (yields `C:\Users\...\Temp\gemini-<slug>.txt` which the subagent's Read tool resolves natively). On Linux/macOS, the literal `/tmp/` path works as-is. Inline content is the default; convert-path is the fallback when output is too large to embed in the prompt.
+- **Passing output paths to subagents:** if you followed the Output-path rule and wrote to `c:/tmp/gemini-<slug>.txt` on Windows, subagents resolve it natively with no conversion needed (preferred). On Linux/macOS, a `/tmp/gemini-<slug>.txt` path works as-is. The problem case is a Windows `/tmp/...` output: subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`), so the subagent's Read tool fails to find `/tmp/gemini-<slug>.txt`. Two fallbacks: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output into the subagent prompt (works everywhere; preferred for outputs ≤ ~50KB). (2) **convert path** — run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path to the subagent.
 
-### Mandatory Write Protection (prevents sandbox escapes)
+### Cwd Write Protection
 
-These steps are MANDATORY for every invocation, regardless of platform, because `--approval-mode plan` is unreliable (see above).
+Scope: this wrapper snapshots and reverts **git-visible changes in the project cwd** after a run. It does not prevent sandbox escapes, does not catch writes outside the project, and may miss `.gitignore`d files — it is a cwd-cleanup net, not a security boundary.
+
+It is **mandatory for yolo-mode invocations** (Attack Surface, Exhausted Hypotheses), which write freely to cwd, and on Windows where `--sandbox` bind-mounts cwd. For plan-mode modes it is **recommended defense-in-depth** rather than strictly required, since tested gemini confined plan-mode writes (see above) — but it is cheap, so default to running it unless you have a reason not to.
 
 **Before launching Gemini:**
 ```bash
@@ -136,15 +143,15 @@ fi
 if [ "$GEMINI_STASHED" -eq 0 ]; then git stash pop 2>/dev/null; fi
 ```
 
-**Simplified rule:** if you don't want to stash/unstash, at minimum run `git status --short` after every Gemini completion and `git checkout -- .` if anything changed. Bare minimum.
+**Simplified rule (plan-mode only — never a substitute for yolo):** for plan-mode runs, if you don't want to stash/unstash, at minimum run `git status --short` after completion and `git checkout -- .` if anything changed. For yolo runs, use the full stash wrapper above, not this shortcut.
 
 **For yolo mode specifically:** when Gemini needs to read files (Explain, Attack Surface, Exhausted Hypotheses), prefer piping file content via stdin over yolo mode:
 ```bash
-# PREFERRED: pipe content, use plan mode (no file writes possible)
-cat file1.py file2.py | gemini -s --approval-mode plan -m gemini-2.5-pro -o text -p "Explain this code"
+# PREFERRED: pipe content, use plan mode (tested gemini refused cwd/shell writes; lowest risk)
+cat file1.py file2.py | gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "Explain this code"
 
 # AVOID: yolo mode (Gemini can and will write files)
-gemini -s --approval-mode yolo -m gemini-2.5-pro -o text -p "Explain the code in file1.py"
+gemini -s --approval-mode yolo --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "Explain the code in file1.py"
 ```
 
 Only use yolo when Gemini genuinely needs to navigate codebase autonomously (e.g., Exhausted Hypotheses where you don't know which files are relevant). In those cases, the git-stash wrapper is mandatory.
@@ -192,9 +199,9 @@ Lightweight guidance for what to include per mode. Adapt to the situation — th
 
 **Explain** — pipe file content via stdin with `plan` mode (preferred), or use `yolo` with git-stash wrapper (only if you don't know which files to pipe). Ask what the code does, why it's structured that way, what's non-obvious.
 
-**Attack Surface** — use `yolo` mode. Include dead-end list and known patterns as constraints. Ask for overlooked vectors, underexplored entry points, non-obvious vulnerability classes.
+**Attack Surface** — use `yolo` mode **with the Cwd Write Protection wrapper** (yolo writes freely). Include dead-end list and known patterns as constraints. Ask for overlooked vectors, underexplored entry points, non-obvious vulnerability classes.
 
-**Exhausted Hypotheses** — use `yolo` mode. Include full pipeline state (scope, dead-ends, coverage, existing hypotheses) as constraints. Ask for 5–10 novel hypotheses NOT in the dead-ends, with exact file:line references and attack scenarios.
+**Exhausted Hypotheses** — use `yolo` mode **with the Cwd Write Protection wrapper** (yolo writes freely). Include full pipeline state (scope, dead-ends, coverage, existing hypotheses) as constraints. Ask for 5–10 novel hypotheses NOT in the dead-ends, with exact file:line references and attack scenarios.
 
 ## Convergence Mode (iterative review)
 
@@ -305,7 +312,9 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 | Empty output | Check stderr (remove `2>/dev/null` temporarily). May be auth or model issue. |
 | Hangs indefinitely | Ensure `--approval-mode` is set (prevents interactive approval prompts) |
 | Wrong/irrelevant analysis | Check that your prompt actually reached Gemini — verify the heredoc closed properly |
-| Subagent reports output file not found | Subagent's isolated tool environment doesn't resolve Git Bash `/tmp/` paths. Inline file content into subagent prompt, or pass `$(cygpath -w /tmp/gemini-<slug>.txt)` on Windows. See Execution Rules → "Passing output paths to subagents". |
+| Output starts with `MCP issues detected. Run /mcp list for status.` | A configured MCP server failed to connect and Gemini prepends the banner to stdout, concatenated with no trailing newline (e.g. `...status.ANSWER`). Rerun with `--allowed-mcp-server-names __none__` to load no MCP servers (the skill's modes don't need them). If a rerun isn't possible, strip exactly that prefix string from the start — do NOT delete the whole first line, since the real answer is appended to it. |
+| Read tool reports output file "does not exist" on Windows | Gemini's stdout was redirected to Git Bash's `/tmp/` (= `%TEMP%`), which Claude's Read tool resolves literally on Windows. Redirect to `c:/tmp/gemini-<slug>.txt` on Windows so the shell write and Claude's Read land on the same native path. One-off fallback for an existing `/tmp/...` output: run `cygpath -w /tmp/gemini-<slug>.txt` in Bash, then Read the printed `C:\...` path. |
+| Subagent reports output file not found | Same root cause. Prefer redirecting to `c:/tmp/gemini-<slug>.txt` on Windows (fix at source). Otherwise inline the file content into the subagent prompt, or run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path. See Execution Rules → "Passing output paths to subagents". |
 
 ## Authentication
 

@@ -47,6 +47,9 @@ When multiple bullets match a single prompt:
 ### Basic Invocation
 
 ```bash
+# Output paths below use /tmp (Linux/macOS); on Windows use c:/tmp instead
+# (Claude's Read tool can't resolve a literal /tmp path on Windows — see Execution Rules).
+
 # Short prompt — pure reasoning, no file access
 gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
   -p "Your prompt here" > /tmp/gemini-slug.txt 2>/dev/null
@@ -104,12 +107,13 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 - **Always add `-s` (or `--sandbox`)** to every gemini invocation — no exceptions
 - Use `run_in_background: true` so user is not blocked
 - Always redirect stderr: `2>/dev/null` (suppresses YOLO mode spam and libuv warnings)
-- **Cleanup:** after reading output file, delete it (`rm -f /tmp/gemini-slug.txt`)
-- Use descriptive slugs: `/tmp/gemini-redteam-auth.txt`, not `/tmp/gemini-output.txt`
-- **Wait for completion:** NEVER read or delete the output file (the `> /tmp/gemini-slug.txt` redirection target) until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Gemini finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
-- **Re-launch safety:** if re-launching a Gemini invocation, use a DIFFERENT output file path (e.g., `/tmp/gemini-redteam-auth-v2.txt`). Never reuse the same output path as a still-running or recently-launched invocation — two processes will collide on output file.
+- **Output path — `<temp>` convention:** write the redirect target to `<temp>/gemini-<slug>.txt`, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` on Windows — Bash in Git Bash resolves it to `%TEMP%` and the write succeeds, but Claude's Read tool resolves the literal `/tmp/...` path and fails with `File does not exist` when you read the output back. `c:/tmp/...` makes both the shell write and Claude's Read land on the same Windows-native location. The `/tmp/` paths in the code examples are the Linux/macOS form — substitute `c:/tmp/` on Windows.
+- **Cleanup:** after reading output file, delete it (`rm -f <temp>/gemini-<slug>.txt`)
+- Use descriptive slugs: `<temp>/gemini-redteam-auth.txt`, not `<temp>/gemini-output.txt`
+- **Wait for completion:** NEVER read or delete the output file (the `> <temp>/gemini-<slug>.txt` redirection target) until you receive `<task-notification>` confirming background task completed. File may be 0 bytes or missing before Gemini finishes — does NOT mean it failed. Premature reads produce false "empty output" conclusions; premature deletes destroy results the process is about to write.
+- **Re-launch safety:** if re-launching a Gemini invocation, use a DIFFERENT output file path (e.g., `<temp>/gemini-redteam-auth-v2.txt`). Never reuse the same output path as a still-running or recently-launched invocation — two processes will collide on output file.
 - **Chase down all output:** if output file is empty but task completed successfully, Gemini may have written to an internal location (e.g., `.gemini/tmp/`). Check background task log for file paths and read them. Never skip or dismiss review output because it ended up somewhere unexpected.
-- **Passing output paths to subagents:** subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`). The subagent's Read tool will fail to find `/tmp/gemini-<slug>.txt`. Two safe patterns: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output directly into the subagent prompt; works on every platform; preferred for outputs ≤ ~50KB. (2) **convert path** — on Windows + Git Bash, pass `$(cygpath -w /tmp/gemini-<slug>.txt)` (yields `C:\Users\...\Temp\gemini-<slug>.txt` which the subagent's Read tool resolves natively). On Linux/macOS, the literal `/tmp/` path works as-is. Inline content is the default; convert-path is the fallback when output is too large to embed in the prompt.
+- **Passing output paths to subagents:** if you followed the Output-path rule and wrote to `c:/tmp/gemini-<slug>.txt` on Windows, subagents resolve it natively with no conversion needed (preferred). On Linux/macOS, a `/tmp/gemini-<slug>.txt` path works as-is. The problem case is a Windows `/tmp/...` output: subagents launched via Task/Agent run in an isolated tool environment that does NOT resolve Git Bash's `/tmp/` to its native Windows path (`C:\Users\<user>\AppData\Local\Temp\`), so the subagent's Read tool fails to find `/tmp/gemini-<slug>.txt`. Two fallbacks: (1) **inline content** — `cat /tmp/gemini-<slug>.txt` in the parent shell and paste the output into the subagent prompt (works everywhere; preferred for outputs ≤ ~50KB). (2) **convert path** — run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path to the subagent.
 
 ### Mandatory Write Protection (prevents sandbox escapes)
 
@@ -305,7 +309,8 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 | Empty output | Check stderr (remove `2>/dev/null` temporarily). May be auth or model issue. |
 | Hangs indefinitely | Ensure `--approval-mode` is set (prevents interactive approval prompts) |
 | Wrong/irrelevant analysis | Check that your prompt actually reached Gemini — verify the heredoc closed properly |
-| Subagent reports output file not found | Subagent's isolated tool environment doesn't resolve Git Bash `/tmp/` paths. Inline file content into subagent prompt, or pass `$(cygpath -w /tmp/gemini-<slug>.txt)` on Windows. See Execution Rules → "Passing output paths to subagents". |
+| Read tool reports output file "does not exist" on Windows | Gemini's stdout was redirected to Git Bash's `/tmp/` (= `%TEMP%`), which Claude's Read tool resolves literally on Windows. Redirect to `c:/tmp/gemini-<slug>.txt` on Windows so the shell write and Claude's Read land on the same native path. One-off fallback for an existing `/tmp/...` output: run `cygpath -w /tmp/gemini-<slug>.txt` in Bash, then Read the printed `C:\...` path. |
+| Subagent reports output file not found | Same root cause. Prefer redirecting to `c:/tmp/gemini-<slug>.txt` on Windows (fix at source). Otherwise inline the file content into the subagent prompt, or run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path. See Execution Rules → "Passing output paths to subagents". |
 
 ## Authentication
 

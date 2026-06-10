@@ -51,11 +51,11 @@ When multiple bullets match a single prompt:
 # (Claude's Read tool can't resolve a literal /tmp path on Windows — see Execution Rules).
 
 # Short prompt — pure reasoning, no file access
-gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
+gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text \
   -p "Your prompt here" > /tmp/gemini-slug.txt 2>/dev/null
 
 # Long prompt via heredoc
-gemini -s --approval-mode plan -m gemini-2.5-pro -o text -p "$(cat <<'PROMPT'
+gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "$(cat <<'PROMPT'
 Mode: red-team
 Question: Find failure modes in this approach.
 Context:
@@ -65,7 +65,7 @@ PROMPT
 )" > /tmp/gemini-slug.txt 2>/dev/null
 
 # Source code via pipe (safe for backticks, $, etc.)
-cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
+cat file.rs | gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text \
   -p "Explain this code. Flag anything that looks like a bug." \
   > /tmp/gemini-slug.txt 2>/dev/null
 ```
@@ -105,6 +105,7 @@ cat file.rs | gemini -s --approval-mode plan -m gemini-2.5-pro -o text \
 ### Execution Rules
 
 - **Always add `-s` (or `--sandbox`)** to every gemini invocation — no exceptions
+- **Disable MCP servers with `--allowed-mcp-server-names __none__`** (the value is any name that matches no configured server). Analysis modes never need MCP, and a failing server makes Gemini prepend `MCP issues detected. Run /mcp list for status.` to **stdout**, contaminating the captured output Claude parses. Verified: the banner disappears with an empty allowlist. Bonus: faster startup.
 - Use `run_in_background: true` so user is not blocked
 - Always redirect stderr: `2>/dev/null` (suppresses YOLO mode spam and libuv warnings)
 - **Output path — `<temp>` convention:** write the redirect target to `<temp>/gemini-<slug>.txt`, where `<temp>` is **`c:/tmp`** on Windows (create once via `mkdir -p c:/tmp`) and **`/tmp`** on Linux/macOS. Do NOT use `/tmp/...` on Windows — Bash in Git Bash resolves it to `%TEMP%` and the write succeeds, but Claude's Read tool resolves the literal `/tmp/...` path and fails with `File does not exist` when you read the output back. `c:/tmp/...` makes both the shell write and Claude's Read land on the same Windows-native location. The `/tmp/` paths in the code examples are the Linux/macOS form — substitute `c:/tmp/` on Windows.
@@ -147,10 +148,10 @@ if [ "$GEMINI_STASHED" -eq 0 ]; then git stash pop 2>/dev/null; fi
 **For yolo mode specifically:** when Gemini needs to read files (Explain, Attack Surface, Exhausted Hypotheses), prefer piping file content via stdin over yolo mode:
 ```bash
 # PREFERRED: pipe content, use plan mode (tested gemini refused cwd/shell writes; lowest risk)
-cat file1.py file2.py | gemini -s --approval-mode plan -m gemini-2.5-pro -o text -p "Explain this code"
+cat file1.py file2.py | gemini -s --approval-mode plan --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "Explain this code"
 
 # AVOID: yolo mode (Gemini can and will write files)
-gemini -s --approval-mode yolo -m gemini-2.5-pro -o text -p "Explain the code in file1.py"
+gemini -s --approval-mode yolo --allowed-mcp-server-names __none__ -m gemini-2.5-pro -o text -p "Explain the code in file1.py"
 ```
 
 Only use yolo when Gemini genuinely needs to navigate codebase autonomously (e.g., Exhausted Hypotheses where you don't know which files are relevant). In those cases, the git-stash wrapper is mandatory.
@@ -311,6 +312,7 @@ This makes post-triage persistence to `dead-ends.yaml` faster — slug and asset
 | Empty output | Check stderr (remove `2>/dev/null` temporarily). May be auth or model issue. |
 | Hangs indefinitely | Ensure `--approval-mode` is set (prevents interactive approval prompts) |
 | Wrong/irrelevant analysis | Check that your prompt actually reached Gemini — verify the heredoc closed properly |
+| Output starts with `MCP issues detected. Run /mcp list for status.` | A configured MCP server failed to connect and Gemini prepends the banner to stdout. Add `--allowed-mcp-server-names __none__` to load no MCP servers (analysis modes don't need them). If you already captured a contaminated output, strip that leading line before parsing. |
 | Read tool reports output file "does not exist" on Windows | Gemini's stdout was redirected to Git Bash's `/tmp/` (= `%TEMP%`), which Claude's Read tool resolves literally on Windows. Redirect to `c:/tmp/gemini-<slug>.txt` on Windows so the shell write and Claude's Read land on the same native path. One-off fallback for an existing `/tmp/...` output: run `cygpath -w /tmp/gemini-<slug>.txt` in Bash, then Read the printed `C:\...` path. |
 | Subagent reports output file not found | Same root cause. Prefer redirecting to `c:/tmp/gemini-<slug>.txt` on Windows (fix at source). Otherwise inline the file content into the subagent prompt, or run `cygpath -w /tmp/gemini-<slug>.txt` in Bash and pass the printed `C:\...` path. See Execution Rules → "Passing output paths to subagents". |
 

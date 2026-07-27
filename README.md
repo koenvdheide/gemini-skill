@@ -33,9 +33,10 @@ Via the `agent-tools` marketplace:
 ```text
 /plugin marketplace add koenvdheide/agent-tools
 /plugin install antigravity@agent-tools
+/reload-plugins
 ```
 
-Refresh later with `/plugin marketplace update agent-tools`.
+Refresh later with `/plugin marketplace update agent-tools`, then `/reload-plugins`.
 
 ## Migration from the `gemini` plugin
 
@@ -44,6 +45,7 @@ The plugin name is its installation identity, so editing the manifest does not c
 ```text
 /plugin uninstall gemini
 /plugin install antigravity@agent-tools
+/reload-plugins
 ```
 
 Invocation changes from `/gemini:gemini` to `/antigravity:antigravity`. The old skill targeted the Gemini CLI (`gemini`), which this release no longer supports.

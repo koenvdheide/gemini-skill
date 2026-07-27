@@ -166,15 +166,24 @@ blocked, add a narrow allow-rule instead (see Recover).
   denied, stderr often carries the only notice, and discarding it turns a blocked run into a
   silent empty answer. Stderr is also sometimes empty on a blocked run, which is why the
   sentinel below is the decisive check.
-- Use descriptive, unique slugs (`/tmp/agy-redteam-auth.out`). On re-launch, use a *different*
-  slug; two runs sharing an output path collide.
+- **Output path, the `<temp>` convention.** Write redirect targets to `<temp>/agy-<slug>.out`,
+  where `<temp>` is **`c:/tmp`** on Windows (create once with `mkdir -p c:/tmp`) and **`/tmp`**
+  on Linux/macOS. Do not use `/tmp/…` on Windows: Git Bash resolves it to `%TEMP%` and the
+  write succeeds, but Claude's Read tool takes the literal path and fails with
+  `File does not exist` when you read the output back. `c:/tmp/…` makes the shell write and
+  the Read land in the same place. The `/tmp/` paths in the examples above are the
+  Linux/macOS form; substitute `c:/tmp/` on Windows.
+- Use descriptive, unique slugs (`<temp>/agy-redteam-auth.out`). On re-launch, use a
+  *different* slug; two runs sharing an output path collide.
 - **Wait for completion.** Never read or delete an output file before the
   `<task-notification>` confirms the background task finished. An empty file before then means
   nothing.
 - Clean up output files after reading them.
-- **Passing output paths to subagents:** a subagent's tool environment does not resolve Git
-  Bash `/tmp/` to its Windows location. Either inline the content into the subagent prompt
-  (preferred, for output up to roughly 50KB), or pass `$(cygpath -w /tmp/agy-<slug>.out)`.
+- **Passing output paths to subagents:** follow the `<temp>` rule and a subagent resolves
+  `c:/tmp/agy-<slug>.out` natively on Windows, with no conversion. On Linux/macOS the `/tmp/`
+  path works as-is. The problem case is a Windows `/tmp/…` output, which a subagent's isolated
+  tool environment cannot resolve. Fallbacks: inline the content into the subagent prompt
+  (preferred, up to roughly 50KB), or pass `$(cygpath -w /tmp/agy-<slug>.out)`.
 
 ## 3. Validate
 

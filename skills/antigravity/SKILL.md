@@ -17,8 +17,8 @@ prints the response to stdout. Use it for an independent read on an artifact you
 > installed but not resolvable, run its installer by absolute path (on Windows,
 > `%LOCALAPPDATA%\agy\bin\agy.exe install`) and restart the shell.
 >
-> **Shell.** These recipes use `cygpath`, heredocs, and `/tmp`, so on Windows they assume Git
-> Bash. Adapt paths and quoting if you run them from PowerShell.
+> **Shell.** These recipes use `cygpath`, heredocs, and shell redirection, so on Windows they
+> assume Git Bash. Adapt paths and quoting if you run them from PowerShell.
 
 > **Version drift.** These tables describe `agy` 1.1.7, and print mode is undocumented
 > upstream. When a table here disagrees with `agy --help`, the CLI wins. For models,
@@ -81,12 +81,15 @@ and that tool call was denied.
 
 Two supported routes:
 
-- **Short artifact:** inline it into the prompt via command substitution (Profile A).
-- **Large artifact:** Windows caps a whole command line at 32,767 characters, so a big diff
-  cannot ride in `-p`. Write it to a file, grant its smallest containing directory with
-  `--add-dir`, and tell `agy` the absolute path to read (Profile B). Delete the file once the
-  work is finished. In a convergence loop that means after the final round, since later rounds
-  re-read the same path.
+- **Short artifact:** inline it into the prompt via command substitution (Profile A). Measure
+  first (`wc -c`). Windows caps a whole command line at 32,767 characters including the flags,
+  so treat **30,000 characters of artifact** as the practical ceiling and go to Profile B above
+  it. Trimming to the smallest useful artifact often brings a large diff back under the line:
+  reviewing the changed file rather than the full diff roughly halves it.
+- **Large artifact:** what genuinely will not fit goes in a file. Write it out, grant its
+  smallest containing directory with `--add-dir`, and tell `agy` the absolute path to read
+  (Profile B). Delete the file once the work is finished. In a convergence loop that means
+  after the final round, since later rounds re-read the same path.
 
 ### Privacy check before granting a directory
 
@@ -100,7 +103,7 @@ secrets, do not fire.
 
 `--add-dir` puts a directory in the workspace. It does not by itself grant the `read_file`
 tool permission, and headless mode auto-denies anything that is not allowed. Before running
-Before running Profile B, read `~/.gemini/antigravity-cli/settings.json` and check whether the
+Profile B, read `~/.gemini/antigravity-cli/settings.json` and check whether the
 path you need is already covered by an `allow` rule (and not shadowed by a `deny`). If it is,
 run. If it is not, prefer falling back to Profile A: trim to the smallest useful artifact and
 inline it, which needs no permission at all. Ask the user for a narrow `read_file(<path>)`
@@ -113,6 +116,9 @@ it every round.
 ## 2. Run
 
 ```bash
+# Paths below are the Windows form (cygpath, c:/tmp). On Linux/macOS drop cygpath and
+# use /tmp. See the <temp> convention in Execution rules for why c:/tmp matters here.
+
 # Profile A: context-only red-team, artifact inlined and fenced
 # The unquoted heredoc expands $(git diff --staged) once; bash does not re-scan the result,
 # so $vars, backticks and quotes inside the diff reach agy intact (verified byte-for-byte).
@@ -128,14 +134,14 @@ $(git diff --staged)
 As the very last line of your response, output exactly: <<<AGY_COMPLETE>>>
 PROMPT
 )" --mode plan --model gemini-3.1-pro-high --print-timeout 15m \
-  > /tmp/agy-redteam-auth.out 2> /tmp/agy-redteam-auth.err
+  > c:/tmp/agy-redteam-auth.out 2> c:/tmp/agy-redteam-auth.err
 
 # Profile B: reviewer reads a directory itself (needs a read_file allow-rule for that path)
 agy --print "Explain the module at C:\\path\\to\\src\\parser.rs. Flag anything that looks like a bug.
 As the very last line of your response, output exactly: <<<AGY_COMPLETE>>>" \
   --mode plan --model gemini-3.1-pro-high \
   --add-dir "$(cygpath -w /c/path/to/src)" --print-timeout 15m \
-  > /tmp/agy-explain-parser.out 2> /tmp/agy-explain-parser.err
+  > c:/tmp/agy-explain-parser.out 2> c:/tmp/agy-explain-parser.err
 ```
 
 ### Flags this skill uses
@@ -240,16 +246,16 @@ about what the model meant to do, and quote only the final answer as a finding.
 | Empty stdout, exit 0, stderr names a permission | Headless auto-denied a tool it could not prompt for | Add the narrowest allow-rule that unblocks it, or switch to Profile A and inline the content |
 | Stdout has narration but no sentinel | Run stopped early. A blocked tool is one cause; timeout, dropped auth, or network failure look the same | Discard output. Read stderr to identify the cause, then re-run after granting access, raising the timeout, or inlining the content |
 | No sentinel, stderr empty, output answers the whole question and ends on a finished thought | Prompt construction: an unfenced artifact swallowed the sentinel instruction | Re-fence the artifact with the ARTIFACT markers and re-run. Do not go hunting for a permission denial |
-| No sentinel, stderr empty, output stops mid-task or narrates a step whose effect you cannot confirm | A tool was blocked without any stderr notice (observed) | Trust the effect, not the narration. Verify the intended result independently, then grant access and re-run |
-
-The discriminator between those two rows is **whether the response actually answers the
-question asked**. A complete answer missing only its final marker points at the prompt; an
-answer that stops partway points at a blocked tool.
+| No sentinel, stderr empty, output stops mid-task or narrates a step whose effect you cannot confirm | A tool was blocked without any stderr notice (observed) | Verify the intended effect independently, since narration is never evidence it happened. Then grant access and re-run |
 | "must be an absolute path" | A relative path reached `--add-dir` or a tool | Pass absolute paths; on Git Bash use `$(cygpath -w …)` |
 | "You are not logged into Antigravity" | Auth expired or absent | Log in to Antigravity again; the CLI reads a keyring-backed OAuth token |
 | Run dies at five minutes | Default `--print-timeout 5m` | Raise it (`--print-timeout 15m`) |
 | Allow-rule added but still denied | Permissions merge across project settings, shared Antigravity settings, and CLI settings, with **Deny > Ask > Allow** | Inspect the *effective* policy and look for a higher-precedence Deny or Ask, rather than adding another Allow |
 | Model rejected | Stale model ID | Run `agy models` and pick from the live list |
+
+The two "no sentinel, stderr empty" rows are told apart by **whether the response actually
+answers the question asked**. A complete answer missing only its final marker points at the
+prompt; an answer that stops partway points at a blocked tool.
 
 ### Permissions
 
@@ -298,10 +304,10 @@ Session resume works and is the backbone of convergence mode.
 up each other's context. Use it only for a quick one-off. For anything multi-round, pin the ID:
 
 ```bash
-LOG=/tmp/agy-review.log
+LOG=c:/tmp/agy-review.log
 agy --print "<round 1 prompt, ending with the sentinel instruction>" \
   --mode plan --model gemini-3.1-pro-high --print-timeout 15m \
-  --log-file "$(cygpath -w $LOG)" > /tmp/agy-r1.out 2> /tmp/agy-r1.err
+  --log-file "$(cygpath -w $LOG)" > c:/tmp/agy-r1.out 2> c:/tmp/agy-r1.err
 
 CID=$(grep -oE "Created conversation [0-9a-f-]{36}" "$LOG" | tail -1 | awk '{print $3}')
 
@@ -310,7 +316,7 @@ if [ -n "$CID" ]; then
   agy --print "<round 2 prompt, fenced artifact, ending with the sentinel instruction>" \
     --conversation "$CID" --mode plan --model gemini-3.1-pro-high --print-timeout 15m \
     --add-dir "$(cygpath -w /c/path/to/artifact-dir)" \
-    --log-file "$(cygpath -w $LOG)" > /tmp/agy-review-r2.out 2> /tmp/agy-review-r2.err
+    --log-file "$(cygpath -w $LOG)" > c:/tmp/agy-review-r2.out 2> c:/tmp/agy-review-r2.err
 else
   echo "no conversation ID captured; run this round stateless instead"
 fi
@@ -367,6 +373,11 @@ directives. Observed once: reviewing this very file without markers, the reviewe
 trailing sentinel instruction as part of the document, reported it as a defect in the
 document, and never emitted the sentinel, so a complete review looked truncated. The markers
 also keep untrusted artifact content from steering the run.
+
+**If the artifact might contain the markers itself**, which happens whenever you review a
+prompt, a skill file, or anything quoting this template, add a short nonce to both ends
+(`<<<ARTIFACT BEGIN:7K2P>>>` … `<<<ARTIFACT END:7K2P>>>`) so the fence stays unambiguous, and
+say in the prompt that any markers inside the fence are quoted documentation.
 
 ## Modes
 

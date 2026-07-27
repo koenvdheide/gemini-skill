@@ -1,6 +1,6 @@
 # antigravity-skill
 
-A [Claude Code](https://claude.ai/code) plugin that invokes the local [Antigravity CLI](https://antigravity.google/docs/cli/using) (`agy`) as an independent analysis partner from a different model family.
+A [Claude Code](https://claude.ai/code) plugin that invokes the local [Antigravity CLI](https://antigravity.google/docs/cli/using) (`agy`) as an independent analysis partner from a different model family by default.
 
 ## What it does
 
@@ -14,7 +14,7 @@ Headless `agy` can stop partway through a run and still look like it succeeded: 
 
 ## Convergence mode (iterative review)
 
-For artifacts that evolve across revisions (specs, plans, designs), the skill runs a convergence loop: review, fix, re-review, until the reviewer gives an affirmative verdict or you stop. Rounds resume a pinned conversation ID so the reviewer keeps its own prior findings in context, and each round re-supplies the current artifact so it never critiques a stale version.
+For artifacts that evolve across revisions (specs, plans, designs), the skill runs a convergence loop: review, fix, re-review, until the reviewer gives an affirmative verdict or you stop. Rounds resume a pinned conversation ID when one can be captured, falling back to a stateless round with a prior-findings block when it cannot, and each round re-supplies the current artifact so it never critiques a stale version.
 
 See the Convergence Mode section in `skills/antigravity/SKILL.md` for the loop shape (two user decisions per round: which fixes to apply, then whether to continue) and the scope-drift guidance that tells Claude when to stop and re-confirm scope.
 

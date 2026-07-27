@@ -6,7 +6,7 @@ A [Claude Code](https://claude.ai/code) plugin that invokes the local [Antigravi
 
 Gives Claude Code a structured way to delegate analysis to Antigravity: brainstorming, red-teaming, diff review, or anything that benefits from a non-Claude perspective. Useful for cross-model validation and avoiding single-model blind spots.
 
-The skill runs `agy` headless (`--print`) in plan mode, and covers the parts of headless operation that Google's docs don't: how to get content in (stdin piping doesn't work), how to scope file access, and how to tell a finished review from one that stopped early.
+The skill runs `agy` headless (`--print`) in plan mode. Google documents [the permission model](https://antigravity.google/docs/cli/permissions) but not print mode, so the skill covers what headless operation actually does: how to get content in (stdin piping doesn't work), and how to tell a finished review from one that stopped early.
 
 ## Why the completion contract matters
 
@@ -40,13 +40,22 @@ Refresh later with `/plugin marketplace update agent-tools`, then `/reload-plugi
 
 ## Migration from the `gemini` plugin
 
-The plugin name is its installation identity, so editing the manifest does not convert an installed copy. Uninstall the old one and install the new one:
+The plugin name is its installation identity, so editing the manifest does not convert an installed copy. Uninstall the old one and install the new one.
 
-```text
-/plugin uninstall gemini
-/plugin install antigravity@agent-tools
-/reload-plugins
+Check which scope the old plugin is installed at first, because uninstall defaults to `user` and a project- or local-scoped copy will survive an unscoped removal:
+
+```bash
+claude plugin list --json
 ```
+
+Then remove it at that scope and install the replacement there:
+
+```bash
+claude plugin uninstall gemini --scope user
+claude plugin install antigravity@agent-tools --scope user
+```
+
+Substitute `project` or `local` if that is where the old copy lives. From inside a session the equivalents are `/plugin uninstall gemini`, `/plugin install antigravity@agent-tools`, then `/reload-plugins`.
 
 Invocation changes from `/gemini:gemini` to `/antigravity:antigravity`. The old skill targeted the Gemini CLI (`gemini`), which this release no longer supports.
 

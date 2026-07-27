@@ -6,8 +6,8 @@
     "name": "Koen van der Heide",
     "url": "https://github.com/koenvdheide"
   },
-  "homepage": "https://github.com/koenvdheide/gemini-skill",
-  "repository": "https://github.com/koenvdheide/gemini-skill",
+  "homepage": "https://github.com/koenvdheide/antigravity-skill",
+  "repository": "https://github.com/koenvdheide/antigravity-skill",
   "license": "MIT",
   "keywords": ["antigravity", "agy", "review", "llm", "cli", "red-team"]
 }

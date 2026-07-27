@@ -2,8 +2,6 @@
 
 A [Claude Code](https://claude.ai/code) plugin that invokes the local [Antigravity CLI](https://antigravity.google/docs/cli/using) (`agy`) as an independent analysis partner from a different model family.
 
-(The repository is still named `gemini-skill`, from when it wrapped the Gemini CLI. The plugin itself is now `antigravity`. See Migration below.)
-
 ## What it does
 
 Gives Claude Code a structured way to delegate analysis to Antigravity: brainstorming, red-teaming, diff review, or anything that benefits from a non-Claude perspective. Useful for cross-model validation and avoiding single-model blind spots.
@@ -30,16 +28,14 @@ Developed against `agy` 1.1.7. Print mode is undocumented upstream, so flags may
 
 ## Installation
 
-Add this repo directly as a single-plugin marketplace:
+Via the `agent-tools` marketplace:
 
 ```text
-/plugin marketplace add koenvdheide/gemini-skill
-/plugin install antigravity@gemini-skill
+/plugin marketplace add koenvdheide/agent-tools
+/plugin install antigravity@agent-tools
 ```
 
-Refresh later with `/plugin marketplace update gemini-skill`.
-
-If you consume this through the `agent-tools` marketplace, that catalog still lists the plugin under its old `gemini` name. It needs updating in its own repository before `antigravity@agent-tools` will resolve.
+Refresh later with `/plugin marketplace update agent-tools`.
 
 ## Migration from the `gemini` plugin
 
@@ -47,7 +43,7 @@ The plugin name is its installation identity, so editing the manifest does not c
 
 ```text
 /plugin uninstall gemini
-/plugin install antigravity@gemini-skill
+/plugin install antigravity@agent-tools
 ```
 
 Invocation changes from `/gemini:gemini` to `/antigravity:antigravity`. The old skill targeted the Gemini CLI (`gemini`), which this release no longer supports.

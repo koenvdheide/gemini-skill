@@ -16,7 +16,7 @@ Headless `agy` can stop partway through a run and still look like it succeeded: 
 
 For artifacts that evolve across revisions (specs, plans, designs), the skill runs a convergence loop: review, fix, re-review, until the reviewer gives an affirmative verdict or you stop. Rounds resume a pinned conversation ID when one can be captured, falling back to a stateless round with a prior-findings block when it cannot, and each round re-supplies the current artifact so it never critiques a stale version.
 
-See the Convergence Mode section in `skills/antigravity/SKILL.md` for the loop shape (two user decisions per round: which fixes to apply, then whether to continue) and the scope-drift guidance that tells Claude when to stop and re-confirm scope.
+See the Convergence Mode section in `skills/antigravity/SKILL.md` for the loop shape (by default two user decisions per round: which fixes to apply, then whether to continue, both waived by a standing instruction to iterate to convergence) and the scope-drift guidance that tells Claude when to stop and re-confirm scope.
 
 ## Prerequisites
 

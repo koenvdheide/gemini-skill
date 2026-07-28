@@ -168,6 +168,9 @@ As the very last line of your response, output exactly: <<<AGY_COMPLETE:$N>>>" \
   --mode plan --model gemini-3.1-pro-high \
   --add-dir "$(cygpath -w /c/path/to/src)" --print-timeout 15m \
   > c:/tmp/agy-explain-parser.out 2> c:/tmp/agy-explain-parser.err
+
+tail -1 c:/tmp/agy-explain-parser.out | tr -d '\r' \
+  | grep -Fxq "<<<AGY_COMPLETE:$N>>>" || echo "INCOMPLETE - discard"
 ```
 
 ### Flags this skill uses
@@ -189,7 +192,8 @@ request, removing the gate that blocks writes and shell commands. Upstream
 [issue #36](https://github.com/google-antigravity/antigravity-cli/issues/36) reports it can
 also authorise a sandbox bypass when combined with `--sandbox`. This flag was not probed
 locally, so the prohibition is skill policy rather than a measured result. If a run is
-blocked, add a narrow allow-rule instead (see Recover).
+blocked, see Recover for the right remedy. It is never a `write_file`, `command`, or
+`unsandboxed` grant.
 
 ### Execution rules
 
@@ -285,11 +289,11 @@ shape narrows the search; it does not prove why a run failed.
 
 | Symptom | First thing to check | Fix |
 |---------|----------------------|-----|
-| Empty stdout, exit 0, stderr names a **read** permission | Headless auto-denied a tool it could not prompt for | Switch to Profile A and inline the content, or add the narrowest `read_file` rule for that path |
+| Empty stdout, exit 0, stderr names a **read** permission | A `deny` or `ask` rule is shadowing the path, or the file sits outside the workspace | Inspect the effective Deny/Ask policy, then either inline the content (Profile A) or move the artifact into an unshadowed directory you pass with `--add-dir`. Adding an `allow` rule does not help, since Deny outranks Allow |
 | Empty stdout, exit 0, stderr names `write_file`, `command`, or `unsandboxed` | The prompt asked the reviewer to change something | **Do not grant it.** This skill is read-only by contract; a review never needs to write or shell out. Rewrite the prompt to ask for analysis instead |
-| Stdout has narration but no sentinel | Run stopped early. A blocked tool is one cause; timeout, dropped auth, or network failure look the same | Discard output. Read stderr to identify the cause, then re-run after granting access, raising the timeout, or inlining the content |
+| Stdout has narration but no sentinel | Run stopped early. A blocked tool is one cause; timeout, dropped auth, or network failure look the same | Discard output. Read stderr to identify the cause, then re-run after inlining the content, relocating the artifact, or raising the timeout. Never unblock it by granting a write or command rule |
 | No sentinel, stderr empty, output answers the whole question and ends on a finished thought | Prompt construction: an unfenced artifact swallowed the sentinel instruction | Re-fence the artifact with the ARTIFACT markers and re-run. Do not go hunting for a permission denial |
-| No sentinel, stderr empty, output stops mid-task or narrates a step whose effect you cannot confirm | Early stop with no notice. A silently blocked tool is one observed cause; a timeout or dropped connection looks identical | Verify the intended effect independently, since narration is never evidence it happened. Then re-run, granting access or raising the timeout once you know which applied |
+| No sentinel, stderr empty, output stops mid-task or narrates a step whose effect you cannot confirm | Early stop with no notice. A silently blocked tool is one observed cause; a timeout or dropped connection looks identical | Verify the intended effect independently, since narration is never evidence it happened. Then re-run, inlining the content or raising the timeout once you know which applied |
 | "must be an absolute path" | A relative path reached `--add-dir` or a tool | Pass absolute paths; on Git Bash use `$(cygpath -w …)` |
 | "You are not logged into Antigravity" | Auth expired or absent | Log in to Antigravity again; the CLI reads a keyring-backed OAuth token |
 | Run dies at five minutes | Default `--print-timeout 5m` | Raise it (`--print-timeout 15m`) |
@@ -358,14 +362,24 @@ agy --print "<round 1 prompt, ending with the sentinel instruction>" \
 # Capture the ID ONCE, immediately, into a variable. --log-file truncates on every launch
 # (verified: a second run to the same path destroyed the first run's Created-conversation
 # line), so the log is not a durable store to re-read in later rounds.
-CID=$(grep -oE "Created conversation [0-9a-f-]{36}" "$LOG" | tail -1 | awk '{print $3}')
+# sed, not awk positional fields: a $<digit> in a skill file can be rewritten by
+# argument substitution when the skill is invoked, silently corrupting this line.
+CID=$(grep -oE "Created conversation [0-9a-f-]{36}" "$LOG" | tail -1 | sed 's/.*conversation //')
 rm -f "$LOG"
+```
 
+**Stop here.** These are two separate steps, not one script. Between them you must validate
+round 1 (exact sentinel, then stderr), report its findings, apply fixes to the artifact, and
+pass both convergence gates. Running the next block straight after the first would review an
+unvalidated result against an artifact you have not yet fixed.
+
+```bash
+# Round 2, only after round 1 validated and its fixes landed
 if [ -n "$CID" ]; then
   # repeat exactly the launch flags round 1 used, no more: if round 1 had --add-dir, repeat
   # it verbatim; if it did not, adding one here silently widens access on resume.
   # No --log-file here: round 1's ID is already in $CID, and re-passing it only truncates.
-  agy --print "<round 2 prompt, fenced artifact, ending with the sentinel instruction>" \
+  agy --print "<round 2 prompt, current artifact re-supplied and fenced, sentinel instruction>" \
     --conversation "$CID" --mode plan --model gemini-3.1-pro-high --print-timeout 15m \
     > c:/tmp/agy-review-r2.out 2> c:/tmp/agy-review-r2.err
 else
@@ -386,7 +400,6 @@ Rules:
   instead. Widening a running conversation is the thing the previous rule forbids.
 - If the ID cannot be recovered, fall back to a stateless round: send the full artifact plus a
   `Previously identified findings:` block.
-- Delete the log when the loop finishes.
 
 ## Base Prompt Template
 

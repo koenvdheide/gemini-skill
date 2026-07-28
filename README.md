@@ -38,6 +38,13 @@ Via the `agent-tools` marketplace:
 
 Refresh later with `/plugin marketplace update agent-tools`, then `/reload-plugins`.
 
+To update the plugin itself from the CLI, use the qualified id. The bare name reports "not
+found" even when the plugin is installed:
+
+```bash
+claude plugin update antigravity@agent-tools
+```
+
 ## Migration from the `gemini` plugin
 
 The plugin name is its installation identity, so editing the manifest does not convert an installed copy. Uninstall the old one and install the new one.

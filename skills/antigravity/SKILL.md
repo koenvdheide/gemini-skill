@@ -4,6 +4,9 @@ description: >-
   Invoke the local Antigravity CLI (agy) as an independent analysis partner from
   a different model family by default. Use for brainstorming, red-teaming, diff review, or
   any task needing a non-Claude perspective.
+  Also use when asked to review, red-team, brainstorm or get a second opinion "with gemini",
+  "from gemini", or "ask gemini": agy runs Gemini models, and this skill replaced the older
+  gemini plugin, so those requests mean this skill. There is no separate Gemini skill.
   Skip for trivial tasks, simple lookups, or when no concrete artifact or
   question exists yet.
 ---
@@ -34,6 +37,11 @@ prints the response to stdout. Use it for an independent read on an artifact you
 These bullets assume Codex is the reviewer you reach for first, as the companion `codex`
 plugin provides. Without it, read "Codex" as whichever reviewer you try before this one, and
 the ordering still holds.
+
+**"Review it with gemini" means this skill.** `agy` runs Gemini models by default, and this
+plugin replaced an earlier `gemini` plugin that wrapped Google's standalone Gemini CLI. A
+request naming Gemini is a request for this skill; the old CLI is no longer supported. Treat
+`/gemini:gemini` in older notes or habits as pointing here.
 
 ## When NOT to Use
 

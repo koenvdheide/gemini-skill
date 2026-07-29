@@ -1,7 +1,7 @@
 {
   "name": "antigravity",
-  "version": "2.0.2",
-  "description": "Wraps the Antigravity CLI (agy) as an independent analysis partner — /antigravity:antigravity skill supports brainstorm, red-team, diff-review, exhausted-hypotheses, attack-surface and other modes from a non-Claude model family",
+  "version": "2.0.3",
+  "description": "Wraps the Antigravity CLI (agy) as an independent analysis partner — /antigravity:antigravity skill supports brainstorm, red-team, diff-review, exhausted-hypotheses, attack-surface and other modes from a non-Claude model family. Replaces the gemini plugin; \"review it with gemini\" means this skill",
   "author": {
     "name": "Koen van der Heide",
     "url": "https://github.com/koenvdheide"
@@ -9,5 +9,5 @@
   "homepage": "https://github.com/koenvdheide/antigravity-skill",
   "repository": "https://github.com/koenvdheide/antigravity-skill",
   "license": "MIT",
-  "keywords": ["antigravity", "agy", "review", "llm", "cli", "red-team"]
+  "keywords": ["antigravity", "agy", "gemini", "review", "llm", "cli", "red-team"]
 }

@@ -1,12 +1,14 @@
 ---
 name: antigravity
 description: >-
-  Invoke the local Antigravity CLI (agy) as an independent analysis partner from
-  a different model family by default. Use for brainstorming, red-teaming, diff review, or
-  any task needing a non-Claude perspective.
-  Also use when asked to review, red-team, brainstorm or get a second opinion "with gemini",
-  "from gemini", or "ask gemini": agy runs Gemini models, and this skill replaced the older
-  gemini plugin, so those requests mean this skill. There is no separate Gemini skill.
+  Invoke the local Antigravity CLI (agy) as an independent analysis partner, running Gemini
+  models by default. Use for brainstorming, red-teaming, diff review, or any task needing a
+  non-Claude perspective.
+  Trigger whenever the user asks to review, critique, red-team, brainstorm, audit or get a
+  second opinion by way of Gemini, a named Gemini model, agy, Google's model, or "a different
+  model" — naming Gemini for that purpose means this skill.
+  Do not trigger for questions about Gemini itself: its API, SDK, pricing, model IDs, context
+  limits, or code that calls it.
   Skip for trivial tasks, simple lookups, or when no concrete artifact or
   question exists yet.
 ---

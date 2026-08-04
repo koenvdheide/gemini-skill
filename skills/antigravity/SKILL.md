@@ -197,6 +197,23 @@ tail -1 c:/tmp/agy-explain-parser.out | tr -d '\r' \
 | `-c` / `--continue` | Resume the most recent conversation. Racy; see Sessions. |
 | `--sandbox` | Run with terminal restrictions. Platform support varies, so treat it as defence in depth on top of the permission gate rather than a guarantee, and confirm it applies on your platform before relying on it. |
 
+### Flags `agy` does not have
+
+These are the ones people reach for when carrying habits over from the Gemini or Codex CLI
+wrappers. None of them exist on `agy` 1.1.7:
+
+`--output-file` · `-o` · `--approval-mode` · `-s` · `--allowed-mcp-server-names`
+
+Measured on all five, the failure is identical: **exit 2**, **nothing on stdout**, and the
+whole message on **stderr**, opening `flags provided but not defined: -<flag>` followed by the
+usage dump. No output file is written. Capture stderr as the rules below require and this is a
+one-line diagnosis. Discard it and you get a task that reports finished, wrote nothing, and
+explains nothing.
+
+Note that `-s` and `-o` do exist on other CLIs with different meanings, so a recipe copied
+from elsewhere fails here rather than doing something subtly wrong. Sandbox is `--sandbox`
+with no short form, and there is no output-file flag at all: redirect stdout instead.
+
 **Never pass `--dangerously-skip-permissions`.** It auto-approves every tool permission
 request, removing the gate that blocks writes and shell commands. Upstream
 [issue #36](https://github.com/google-antigravity/antigravity-cli/issues/36) reports it can
@@ -308,6 +325,7 @@ shape narrows the search; it does not prove why a run failed.
 | "You are not logged into Antigravity" | Auth expired or absent | Log in to Antigravity again; the CLI reads a keyring-backed OAuth token |
 | Run dies at five minutes | Default `--print-timeout 5m` | Raise it (`--print-timeout 15m`) |
 | Allow-rule added but still denied | Permissions merge across project settings, shared Antigravity settings, and CLI settings, with **Deny > Ask > Allow** | Inspect the *effective* policy and look for a higher-precedence Deny or Ask, rather than adding another Allow |
+| Empty stdout, **exit 2**, stderr opens `flags provided but not defined:` | A flag that does not exist on `agy`, usually carried over from another CLI wrapper | Check it against the flag list above. Usual culprits: `--output-file`, `-o`, `--approval-mode`, `-s`, `--allowed-mcp-server-names` |
 | Model rejected | Stale model ID | Run `agy models` and pick from the live list |
 
 The two "no sentinel, stderr empty" rows are told apart by **whether the response actually

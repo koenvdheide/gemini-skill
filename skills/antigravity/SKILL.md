@@ -629,6 +629,16 @@ add-machinery ones.
   additions and no cuts is one-sided. Say so; a finding count is not a verdict.
 - **Validate every cited file path and line number against the actual codebase.** Cited
   references can be hallucinated.
+- **Expect confident false positives, and check the checkable ones before acting.** Findings
+  arrive at a uniform pitch whether or not they are right: a run may assert that a CLI
+  subcommand does not exist, or that a working recipe is broken, in the same tone as a finding
+  that holds. A claim about a command, a flag, or a file is cheap to settle by running it, so
+  settle it. The cost of skipping that is not a wasted round, it is editing correct text into
+  incorrect text on a reviewer's say-so.
+- **An affirmative verdict is not evidence either.** A run can report convergence with real
+  problems still in the artifact, then find them the moment a later prompt names them. Treat
+  "nothing open" as this round finding nothing, and let a second reviewer or your own check
+  decide whether the work is done.
 - If output is generic, retry once with a narrower question. Do not retry twice.
 
 ## Summarization Fidelity

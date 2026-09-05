@@ -388,6 +388,11 @@ Effort suffixes (`-high` / `-medium` / `-low`) vary by release, and not every mo
 three. A separate `--effort` flag also exists; prefer the suffix and do not assume the two
 compose.
 
+**Flash is the right default for convergence mode.** A convergence loop pays the model cost
+once per round, and rounds are the point, so a fast cheap model that answers in a couple of
+minutes beats a slower one that makes each round a wait. Flash is both, which is why the loop
+below assumes it. Save a heavier model for a single deep pass on a finished artifact.
+
 **`agy` also serves `claude-*` models.** Selecting one gives up the cross-family read that is
 the usual reason to call this skill. Warn the user before launching with a `claude-*` model,
 then go ahead if that is what they want: this is a warning rather than a block, so the escape

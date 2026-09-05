@@ -227,11 +227,10 @@ wrappers. None of them exist on `agy`:
 
 `--output-file` · `-o` · `--approval-mode` · `-s` · `--allowed-mcp-server-names`
 
-Measured on all five, the failure is identical: **exit 2**, **nothing on stdout**, and the
-whole message on **stderr**, opening `flags provided but not defined: -<flag>` followed by the
-usage dump. No output file is written. Capture stderr as the rules below require and this is a
-one-line diagnosis. Discard it and you get a task that reports finished, wrote nothing, and
-explains nothing.
+The signature is identical for all five: **exit 2**, **nothing on stdout**, and
+`flags provided but not defined: -<flag>` plus a usage dump on **stderr**. No output file is
+written. Capture stderr and this is a one-line diagnosis; discard it and the task reports
+finished having written nothing.
 
 Note that `-s` and `-o` do exist on other CLIs with different meanings, so a recipe copied
 from elsewhere fails here rather than doing something subtly wrong. Sandbox is `--sandbox`
@@ -306,11 +305,9 @@ complete answer, check your own prompt before assuming truncation: an artifact p
 the ARTIFACT markers can swallow the sentinel instruction, so the reviewer never treats it as
 a directive. Fix the prompt and re-run rather than chasing a permission that was never denied.
 
-This check exists because a truncated run is otherwise indistinguishable from a complete one.
-An observed failure: `agy` was asked to modify a file, emitted three lines of stdout ending
-`"I will overwrite the contents of tracked.txt..."`, wrote **empty stderr**, exited **0**, and
-did nothing at all. Stdout was non-empty and stderr was clean, so only the missing sentinel
-revealed the run had stopped early.
+A truncated run is otherwise indistinguishable from a complete one: a run that stops early
+can still emit plausible stdout, empty stderr, and exit 0. The sentinel is the only signal
+that separates them.
 
 ### Read stderr every run
 
@@ -371,13 +368,9 @@ verified exception: reads of files inside the workspace are granted by `--add-di
 without any rule. Never add a `write_file`, `command`, or `unsandboxed` rule to unblock this
 skill; needing one means the prompt asked for something a review should not do.
 
-Observed behaviour under `--mode plan` with default permissions: attempts to overwrite a
-tracked file, create an untracked file, and run a shell command were all blocked, and the
-working tree was unchanged. Rely on that as an observation rather than a guarantee, and keep
-prompts read-only in intent.
-
-This skill instructs; it does not edit the user's `settings.json`. Propose a rule and let the
-user apply it.
+Under `--mode plan` with default permissions, writes and shell commands are blocked. Treat
+that as an observation rather than a guarantee, and keep prompts read-only in intent. Propose
+a rule when one is needed; leave `settings.json` to the user.
 
 ## Model selection
 
@@ -505,9 +498,8 @@ configuration, more phases. That is the bias the paragraph cancels.
 
 **Always fence the artifact.** Without the markers, an artifact that itself contains
 instructions (a skill file, a prompt, a spec, anything quoting a template) bleeds into the
-directives. Observed once: reviewing this very file without markers, the reviewer read the
-trailing sentinel instruction as part of the document, reported it as a defect in the
-document, and never emitted the sentinel, so a complete review looked truncated.
+directives: the reviewer reads your trailing sentinel instruction as part of the document,
+reports it as a defect, and never emits it, so a complete review looks truncated.
 
 **Nonce the fence and the completion token on every run**, as the recipes above do
 (`<<<ARTIFACT BEGIN:$N>>>` … `<<<ARTIFACT END:$N>>>`, ending `<<<AGY_COMPLETE:$N>>>`). Any

@@ -155,9 +155,6 @@ If a read is denied anyway, a `deny` rule is shadowing the path, since deny outr
 everything. Check `~/.gemini/antigravity-cli/settings.json` and prefer moving the artifact
 somewhere unshadowed over broadening the rules.
 
-Delete any temporary file only once the whole task is done, since a convergence loop re-reads
-it every round.
-
 ## 2. Run
 
 ```bash
@@ -268,9 +265,9 @@ blocked, see Recover for the right remedy. It is never a `write_file`, `command`
   `c:/tmp/agy-<slug>.out` natively on Windows, with no conversion. On Linux/macOS the `/tmp/`
   path works as-is. The problem case is a Windows `/tmp/…` output, which a subagent's isolated
   tool environment cannot resolve. The fix is to have written it to `c:/tmp/` in the first
-  place; otherwise inline the content into the subagent prompt (up to roughly 50KB). Do not
-  reach for `cygpath -w /tmp/…` here: that resolves to `%TEMP%`, which is where a `c:/tmp/`
-  output is precisely not.
+  place; otherwise inline the content into the subagent prompt (up to roughly 50KB), or pass
+  `$(cygpath -w /tmp/…)`, which resolves a file genuinely written to Git Bash's `/tmp/`. Never
+  apply that conversion to a `c:/tmp/` output: it yields `%TEMP%`, which is somewhere else.
 
 ## 3. Validate
 
@@ -347,6 +344,7 @@ shape narrows the search; it does not prove why a run failed.
 | Allow-rule added but still denied | Permissions merge across project settings, shared Antigravity settings, and CLI settings, with **Deny > Ask > Allow** | Inspect the *effective* policy and look for a higher-precedence Deny or Ask, rather than adding another Allow |
 | Empty stdout, **exit 2**, stderr opens `flags provided but not defined:` | A flag that does not exist on `agy`, usually carried over from another CLI wrapper | Check it against the flag list above. Usual culprits: `--output-file`, `-o`, `--approval-mode`, `-s`, `--allowed-mcp-server-names` |
 | Model rejected | Stale model ID | Run `agy models` and pick from the live list |
+| Answer ignores everything earlier rounds established | `--conversation` missed and started an empty history | Check stderr for `conversation "<id>" not found`, recapture the ID, and re-send what the round needs |
 | Empty stdout, exit 0, stderr names `read_file`, and the artifact was fully inlined | The model went looking for files it had already been given. No rule is shadowing anything, so the read rows above do not apply | Re-run under Profile B with the directory granted. Failing that, re-run under A telling it the artifact is complete and no tool call is needed |
 
 The two "no sentinel, stderr empty" rows are told apart by **whether the response actually
@@ -448,6 +446,12 @@ Rules:
 
 - The ID-capture step reads a log line format upstream may change. Check `$CID` is non-empty
   before resuming, and fall back to a stateless round if it is empty.
+- **An unknown ID does not fail the run.** `--conversation <id>` that matches nothing warns
+  `conversation "<id>" not found` on **stderr**, then answers from an empty history and exits
+  0. Stdout alone cannot tell that apart from a real resume, which is one more reason the
+  stderr rule is not optional.
+- Resuming keeps the history server-side, so a later round need not re-send what earlier rounds
+  already established. Re-send the artifact when the artifact itself changed.
 - Repeat `--model`, `--mode`, and `--print-timeout` on every resume, and repeat `--add-dir`
   only if round 1 used it. Do not assume any carry over, and never grant access on resume that
   round 1 did not have.

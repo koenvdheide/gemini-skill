@@ -87,10 +87,22 @@ Follow all four steps every time. Step 3 is what stops a truncated run being rep
 
 | Profile | Use for | Flags |
 |---------|---------|-------|
-| **A. Context-only** (default) | Everything the reviewer needs fits in the prompt: red-team, diff review, brainstorm, post-mortem, compare | `--mode plan` and no `--add-dir` |
-| **B. Workspace-reading** | Reviewer must navigate files itself (explain, attack surface, exhausted hypotheses), or the artifact is too big for a command line | `--mode plan --add-dir <smallest dir>` |
+| **B. Workspace-reading** (default when the material is on disk) | Anything that lives in a repo or directory: diff review, explain, attack surface, exhausted hypotheses, red-team of committed code | `--mode plan --add-dir <smallest dir>` |
+| **A. Context-only** | Material with no file to point at: a plan or spec that exists only in the conversation, pasted logs, a design nobody has written down | `--mode plan` and no `--add-dir` |
 
-Prefer A. Reach for B only when you genuinely cannot name the relevant files up front.
+**Prefer B whenever the material sits in a directory you can safely grant**, and let the
+reviewer open the tree itself. A reviewer reading a diff alone sees only the changed hunks,
+so it cannot judge the changed lines against the file around them or find the related
+problem two hundred lines away. Measured on the same question against the same model: the
+inlined run reported four findings from the diff, and the `--add-dir` run reported five, two
+of them in unchanged lines the diff never contained. A model handed a complete inlined
+artifact may also still reach for `read_file` and lose the whole run to an auto-denial.
+
+Two things pull the other way. The privacy check below is the gate on B, and a tree you
+cannot grant sends you to A whatever the artifact is. B also reads a *moving* tree: edit
+files while a review runs and its findings describe a version that no longer exists, where an
+inlined artifact is frozen at send time. Finish your edits before firing, or expect to date
+the result.
 
 ### Get the content in
 
@@ -98,18 +110,22 @@ Prefer A. Reach for B only when you genuinely cannot name the relevant files up 
 some CLIs do. In an observed run the model tried to shell out to read the content instead,
 and that tool call was denied.
 
-Two supported routes:
+Three routes, best first:
 
-- **Short artifact:** inline it into the prompt via command substitution (Profile A). Measure
+- **Already on disk:** grant its smallest containing directory with `--add-dir` and name the
+  paths in the prompt (Profile B). A repo, a worktree, a directory of logs. Say what to read:
+  a commit (`git show HEAD`), the files whose current state matters, and what the change was
+  meant to do. This is the default.
+- **Short artifact with no file:** inline it into the prompt via command substitution (Profile A). Measure
   first (`wc -c`), and measure the assembled command: the mode clause, template and simplicity
   bar run to well over a thousand characters before the artifact starts. Windows caps a whole
   command line at 32,767 characters including the flags, so treat **30,000 characters for the
   whole command** as the practical ceiling and go to Profile B above it. Trimming to the smallest useful artifact often brings a large diff back under the line:
   reviewing the changed file alone is usually far smaller than the full diff.
-- **Large artifact:** what genuinely will not fit goes in a file. Write it out, grant its
-  smallest containing directory with `--add-dir`, and tell `agy` the absolute path to read
-  (Profile B). Delete the file once the work is finished. In a convergence loop that means
-  after the final round, since later rounds re-read the same path.
+- **Large artifact with no file:** what will not fit gets written to one. Grant its smallest
+  containing directory and tell `agy` the absolute path (Profile B). Delete the file once the
+  work is finished. In a convergence loop that means after the final round, since later rounds
+  re-read the same path.
 
 ### Privacy check before sending anything
 
@@ -332,6 +348,7 @@ shape narrows the search; it does not prove why a run failed.
 | Allow-rule added but still denied | Permissions merge across project settings, shared Antigravity settings, and CLI settings, with **Deny > Ask > Allow** | Inspect the *effective* policy and look for a higher-precedence Deny or Ask, rather than adding another Allow |
 | Empty stdout, **exit 2**, stderr opens `flags provided but not defined:` | A flag that does not exist on `agy`, usually carried over from another CLI wrapper | Check it against the flag list above. Usual culprits: `--output-file`, `-o`, `--approval-mode`, `-s`, `--allowed-mcp-server-names` |
 | Model rejected | Stale model ID | Run `agy models` and pick from the live list |
+| Empty stdout, exit 0, stderr names `read_file`, and the artifact was fully inlined | The model went looking for files it had already been given. No rule is shadowing anything, so the read rows above do not apply | Re-run under Profile B with the directory granted. Failing that, re-run under A telling it the artifact is complete and no tool call is needed |
 
 The two "no sentinel, stderr empty" rows are told apart by **whether the response actually
 answers the question asked**. A complete answer missing only its final marker points at the
@@ -364,11 +381,17 @@ user apply it.
 
 Run `agy models` for the live list. Pin a model explicitly on every invocation.
 
-Default to a **Gemini** model: the Pro tier for deep analysis, a Flash variant for faster
-turnaround. Take the exact ID from `agy models`, since the tiers on offer and their effort
-suffixes (`-high` / `-medium` / `-low`) change between releases, and not every tier carries
-every suffix. A separate `--effort` flag also exists; prefer the suffix and do not assume the
-two compose.
+Default to a **Gemini** model and take the exact ID from `agy models`. Absent a reason to do
+otherwise, pick the highest-numbered release on offer at its `-high` effort suffix.
+
+Do not read Pro as the deep tier and Flash as the fast one. Google has been shipping its
+strongest coding and agentic capability in the Flash releases, and the Pro line trails them in
+version number, so the newest Flash is usually the better reviewer for this skill's work.
+Check the model's own card when the choice matters.
+
+Effort suffixes (`-high` / `-medium` / `-low`) vary by release, and not every model carries all
+three. A separate `--effort` flag also exists; prefer the suffix and do not assume the two
+compose.
 
 **`agy` also serves `claude-*` models.** Selecting one gives up the cross-family read that is
 the usual reason to call this skill. Warn the user before launching with a `claude-*` model,
@@ -526,7 +549,9 @@ nothing, so a short section reads as a judgement.
 Tell it not to strip defensive code at system boundaries or WHY comments. Add: "Do not agree
 just to be agreeable. Do not pad either heading to look balanced."
 
-**Diff Review** — include the diff and any source it references. Ask it to verify each claim,
+**Diff Review** — Profile B against the repo, naming the commit and the files whose current
+state matters, so the change is judged against the file as it now stands. Fall back to A with
+the diff inlined only when the tree cannot be granted. Ask it to verify each claim,
 flag assumptions stated as facts, check for stale line numbers, and flag machinery the diff adds
 that its stated goal does not require.
 

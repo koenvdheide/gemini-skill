@@ -26,8 +26,8 @@ prints the response to stdout. Use it for an independent read on an artifact you
 > **Shell.** These recipes use `cygpath`, heredocs, and shell redirection, so on Windows they
 > assume Git Bash. Adapt paths and quoting if you run them from PowerShell.
 
-> **Version drift.** These tables describe `agy` 1.1.7, and print mode is undocumented
-> upstream. When a table here disagrees with `agy --help`, the CLI wins. For models,
+> **Version drift.** Print mode is undocumented upstream and its flags drift between
+> releases. When a table here disagrees with `agy --help`, the CLI wins. For models,
 > `agy models` wins.
 
 ## When to Use
@@ -205,7 +205,7 @@ tail -1 c:/tmp/agy-explain-parser.out | tr -d '\r' \
 ### Flags `agy` does not have
 
 These are the ones people reach for when carrying habits over from the Gemini or Codex CLI
-wrappers. None of them exist on `agy` 1.1.7:
+wrappers. None of them exist on `agy`:
 
 `--output-file` · `-o` · `--approval-mode` · `-s` · `--allowed-mcp-server-names`
 
@@ -364,10 +364,11 @@ user apply it.
 
 Run `agy models` for the live list. Pin a model explicitly on every invocation.
 
-Default to a **Gemini** model: `gemini-3.1-pro-high` for deep analysis, a flash variant for
-faster turnaround. Several Gemini IDs carry a `-high` / `-medium` / `-low` effort suffix, so
-use whichever exact ID `agy models` returns. A separate `--effort` flag also exists; prefer
-the suffix and do not assume the two compose.
+Default to a **Gemini** model: the Pro tier for deep analysis, a Flash variant for faster
+turnaround. Take the exact ID from `agy models`, since the tiers on offer and their effort
+suffixes (`-high` / `-medium` / `-low`) change between releases, and not every tier carries
+every suffix. A separate `--effort` flag also exists; prefer the suffix and do not assume the
+two compose.
 
 **`agy` also serves `claude-*` models.** Selecting one gives up the cross-family read that is
 the usual reason to call this skill. Warn the user before launching with a `claude-*` model,
@@ -422,8 +423,8 @@ fi
 
 Rules:
 
-- The ID-capture step reads a log line format confirmed on `agy` 1.1.7. Check `$CID` is
-  non-empty before resuming, since the format may change between versions.
+- The ID-capture step reads a log line format upstream may change. Check `$CID` is non-empty
+  before resuming, and fall back to a stateless round if it is empty.
 - Repeat `--model`, `--mode`, and `--print-timeout` on every resume, and repeat `--add-dir`
   only if round 1 used it. Do not assume any carry over, and never grant access on resume that
   round 1 did not have.

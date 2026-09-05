@@ -24,7 +24,7 @@ See the Convergence Mode section in `skills/antigravity/SKILL.md` for the loop s
 - Antigravity CLI (`agy`) installed and on PATH. If the binary is installed but the `agy` command is not found, run the installer by its absolute path and restart the shell (on Windows that is `%LOCALAPPDATA%\agy\bin\agy.exe install`).
 - A logged-in Antigravity account.
 
-Developed against `agy` 1.1.7. Print mode is undocumented upstream, so flags may drift: the skill tells Claude to trust `agy --help` and `agy models` over its own tables when they disagree.
+Print mode is undocumented upstream and its flags drift between releases, so the skill tells Claude to trust `agy --help` and `agy models` over its own tables when they disagree.
 
 ## Installation
 
